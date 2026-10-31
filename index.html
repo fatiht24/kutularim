@@ -57,6 +57,7 @@ input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);
 .item{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;cursor:pointer}
 .item b{display:block}.item small{color:var(--mute)}
 .dist{font-weight:700;color:var(--accent);white-space:nowrap}
+.nav{margin:8px 0;padding:9px 11px;background:var(--bg);border-radius:10px;font-size:15px}
 .empty{text-align:center;color:var(--mute);padding:26px 10px}
 .bar{position:fixed;left:0;right:0;bottom:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,var(--bg) 35%);display:flex;gap:10px;justify-content:center;z-index:5}
 .bar .main{flex:1;max-width:420px;padding:13px}
@@ -75,7 +76,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <input class="search" id="q" type="search" placeholder="Kutu veya eşya ara" aria-label="Ara">
     <button class="btn" id="me" aria-label="Beni bul">Beni bul</button>
   </div>
-  <div class="mw"><div id="map"></div><div class="attr">© OpenStreetMap</div></div>
+  <div class="mw"><div id="map"></div><div class="attr">© OpenStreetMap, rota: OSRM (FOSSGIS)</div></div>
   <div class="msg" id="msg"></div>
   <div class="msg" id="warn" hidden style="color:var(--danger);font-weight:500"></div>
   <div id="info"></div>
@@ -170,7 +171,7 @@ function drawBoxes(){
       .on("click",function(){pick(b.id)}).addTo(mk);
   });
 }
-function route(){
+function route0(){
   if(rl){map.removeLayer(rl);rl=null}
   var b=sel&&get(sel);
   if(me&&b&&has(b))rl=L.polyline([[me.lat,me.lng],[b.lat,b.lng]],{color:"#0f766e",weight:4,dashArray:"4 10"}).addTo(map);
@@ -181,8 +182,8 @@ function renderInfo(){
     h='<div class="card"><h3>'+esc(b.name)+'</h3><div class="msg" style="margin:0">'+esc(b.loc||"")+'</div>';
     if(me&&has(b)){var d=dist(me,b);h+='<div class="big">'+fd(d)+'</div><div class="msg" style="margin:0">'+dir(brg(me,b))+' yönünde'+(d<15?' · neredeyse yanındasın':'')+'</div>'}
     else if(!has(b))h+='<div class="msg">Bu kutunun harita yeri yok. Düzenleyip yerini seç.</div>';
-    h+='<div class="msg">'+(b.items.length?esc(b.items.join(", ")):"İçinde eşya yok")+(b.note?" · "+esc(b.note):"")+'</div><div class="row">';
-    if(has(b))h+='<a class="btn main" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=walking&destination='+b.lat+','+b.lng+'">Yol tarifi</a>';
+    h+=(nav&&me&&has(b)?'<div class="nav">'+nav+'</div>':'')+'<div class="msg">'+(b.items.length?esc(b.items.join(", ")):"İçinde eşya yok")+(b.note?" · "+esc(b.note):"")+'</div><div class="row">';
+    
     if(!has(b)&&me)h+='<button class="btn main" id="hl">Konumu buraya ata</button>';
     h+='<button class="btn" id="ed">Düzenle</button><button class="btn" id="cl">Kapat</button></div></div>';
   }
@@ -343,6 +344,38 @@ idbOpen(function(){
   if(boxes.length){idbPut(JSON.stringify(boxes));return}
   idbGet(function(s){if(!s)return;try{var a=JSON.parse(s);if(Array.isArray(a)&&a.length){boxes=a;drawBoxes();renderList();renderInfo();var p=boxes.filter(has).map(function(b){return[b.lat,b.lng]});if(p.length)map.fitBounds(p,{padding:[40,40],maxZoom:17})}}catch(e){}});
 });
+var nav="",wl=null,wsel=null,lastT=0,lastP=null,tok=0;
+var TM={"left":"sola dön","right":"sağa dön","slight left":"hafif sola dön","slight right":"hafif sağa dön","sharp left":"keskin sola dön","sharp right":"keskin sağa dön","uturn":"geri dön","straight":"düz devam et"};
+function turn(s){var m=s.maneuver||{},t=m.type,nm=s.name?" ("+esc(s.name)+")":"";
+  if(t==="arrive")return"kutuya varırsın";
+  if(t==="roundabout"||t==="rotary"||t==="roundabout turn")return"kavşağa gir"+(m.exit?", "+m.exit+". çıkıştan çık":"")+nm;
+  if(t==="merge")return"yola katıl"+nm;
+  if(t==="on ramp")return"bağlantı yoluna gir"+nm;
+  if(t==="off ramp")return"çıkıştan ayrıl"+nm;
+  if(t==="fork")return"yol ayrımında "+(TM[m.modifier]||"devam et").replace(" dön"," git")+nm;
+  return(TM[m.modifier]||"devam et")+nm}
+function walk(b){
+  var my=++tok,u="https://routing.openstreetmap.de/routed-car/route/v1/driving/"+me.lng+","+me.lat+";"+b.lng+","+b.lat+"?overview=full&geometries=geojson&steps=true";
+  fetch(u).then(function(r){return r.json()}).then(function(j){
+    if(my!==tok||sel!==b.id||!j.routes||!j.routes[0])return;
+    var rt=j.routes[0],pts=rt.geometry.coordinates.map(function(c){return[c[1],c[0]]});
+    if(rl){map.removeLayer(rl);rl=null}if(wl)map.removeLayer(wl);
+    wl=L.polyline(pts,{color:"#0f766e",weight:5}).addTo(map);wsel=b.id;
+    var st=rt.legs[0].steps;
+    nav="Arabayla "+fd(rt.distance)+", yaklaşık "+Math.max(1,Math.round(rt.duration/60))+" dk";
+    if(st.length>1)nav+="<br><b>"+fd(st[0].distance)+" sonra "+turn(st[1])+"</b>";
+    renderInfo();
+  }).catch(function(){if(!wl)msg("Araç rotası alınamadı, düz çizgi gösteriliyor. İnternet bağlantısını kontrol et.")});
+}
+function route(){
+  if(rl){map.removeLayer(rl);rl=null}
+  var b=sel&&get(sel);
+  if(!me||!b||!has(b)){if(wl){map.removeLayer(wl);wl=null}wsel=null;nav="";return}
+  if(wsel!==sel){if(wl){map.removeLayer(wl);wl=null}nav="";if(lastP&&lastP.id!==sel){lastP=null;lastT=0}}
+  if(!wl)rl=L.polyline([[me.lat,me.lng],[b.lat,b.lng]],{color:"#0f766e",weight:4,dashArray:"4 10"}).addTo(map);
+  var now=Date.now();
+  if(now-lastT>=4000&&(!lastP||dist(me,lastP)>40)){lastT=now;lastP={lat:me.lat,lng:me.lng,id:sel};walk(b)}
+}
 var pts0=boxes.filter(has).map(function(b){return[b.lat,b.lng]});
 if(pts0.length)map.fitBounds(pts0,{padding:[40,40],maxZoom:17});
 drawBoxes();renderList();renderInfo();gps();
