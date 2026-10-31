@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kutularım Harita</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kutularım">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+.leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,.leaflet-layer{position:absolute;left:0;top:0}
+.leaflet-container{overflow:hidden;-webkit-tap-highlight-color:transparent;outline:0}
+.leaflet-tile,.leaflet-marker-icon{user-select:none;-webkit-user-drag:none}
+.leaflet-container .leaflet-tile{max-width:none!important;max-height:none!important}
+.leaflet-tile{visibility:hidden}.leaflet-tile-loaded{visibility:inherit}
+.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-marker-pane{z-index:600}
+.leaflet-pane>svg{pointer-events:none}.leaflet-interactive{cursor:pointer;pointer-events:auto}
+.leaflet-touch-drag{touch-action:pinch-zoom}.leaflet-touch-drag.leaflet-touch-zoom{touch-action:none}
+.leaflet-zoom-anim .leaflet-zoom-animated{transition:transform .25s cubic-bezier(0,0,.25,1)}
+.leaflet-zoom-animated{transform-origin:0 0}
+.leaflet-fade-anim .leaflet-tile{will-change:opacity}
+.leaflet-marker-icon{pointer-events:auto}
+:root{--bg:#eef1f4;--surface:#fff;--ink:#1b2733;--mute:#5d6b79;--line:#d5dce3;--accent:#0f766e;--on-accent:#fff;--tag:#f2c94c;--on-tag:#3a2f00;--danger:#b42318;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10171d;--surface:#18212a;--ink:#e8eef3;--mute:#93a2b0;--line:#2b3846;--accent:#2dd4bf;--on-accent:#032b27;--tag:#e0b73a;--on-tag:#2a2100;--danger:#f97066;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#10171d;--surface:#18212a;--ink:#e8eef3;--mute:#93a2b0;--line:#2b3846;--accent:#2dd4bf;--on-accent:#032b27;--tag:#e0b73a;--on-tag:#2a2100;--danger:#f97066;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Outfit,system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:680px;margin:0 auto;padding:12px 14px 100px}
+input,textarea,button{font:inherit;color:inherit}
+.top{display:flex;gap:8px;margin-bottom:8px}
+.search{flex:1;min-width:0;padding:11px 13px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface)}
+input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn{border:1.5px solid var(--line);background:var(--surface);padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:500}
+.btn.main{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+.btn.del{color:var(--danger);border-color:var(--danger)}
+.mw{position:relative}
+#map{height:50vh;min-height:280px;border-radius:14px;border:1.5px solid var(--line);background:var(--line);position:relative;overflow:hidden;z-index:0}
+#map.place{outline:3px solid var(--accent);outline-offset:-3px;cursor:crosshair}
+.attr{position:absolute;right:6px;bottom:4px;z-index:1;font-size:11px;background:var(--surface);color:var(--mute);padding:0 5px;border-radius:4px;opacity:.85}
+.msg{color:var(--mute);font-size:14px;margin:8px 2px;min-height:1px}
+.pin{position:absolute;display:flex;align-items:center;gap:4px;transform:translate(-9px,-50%);white-space:nowrap}
+.pin i{width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 0 0 1.5px var(--accent);flex:none}
+.pin span{background:var(--surface);color:var(--ink);border:1.5px solid var(--accent);border-radius:7px;padding:1px 7px;font-size:12px;font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.pin.dim{opacity:.25}.pin.hit2 span,.pin.sel span{background:var(--accent);color:var(--on-accent)}
+.pin.sel i{background:var(--tag);box-shadow:0 0 0 2.5px var(--accent)}
+.card{background:var(--surface);border:1.5px solid var(--accent);border-radius:14px;padding:13px 15px;margin:10px 0}
+.card h3{margin:0 0 2px;font-size:19px}
+.big{font-size:26px;font-weight:700;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.row a.btn{text-decoration:none;display:inline-block}
+.item{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;cursor:pointer}
+.item b{display:block}.item small{color:var(--mute)}
+.dist{font-weight:700;color:var(--accent);white-space:nowrap}
+.empty{text-align:center;color:var(--mute);padding:26px 10px}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,var(--bg) 35%);display:flex;gap:10px;justify-content:center;z-index:5}
+.bar .main{flex:1;max-width:420px;padding:13px}
+dialog{border:0;border-radius:18px;padding:0;width:min(560px,calc(100% - 24px));background:var(--surface);color:var(--ink);max-height:92%}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.dlg{padding:18px}.dlg h2{margin:0 0 12px;font-size:21px}
+.f{display:block;margin-bottom:12px;font-weight:500;font-size:14px;color:var(--mute)}
+.f input,.f textarea{display:block;width:100%;margin-top:5px;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:16px}
+.f textarea{min-height:110px;resize:vertical}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.acts .main{flex:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <input class="search" id="q" type="search" placeholder="Kutu veya eşya ara" aria-label="Ara">
+    <button class="btn" id="me" aria-label="Beni bul">Beni bul</button>
+  </div>
+  <div class="mw"><div id="map"></div><div class="attr">© OpenStreetMap</div></div>
+  <div class="msg" id="msg"></div>
+  <div id="info"></div>
+  <div id="list"></div>
+</div>
+<div class="bar">
+  <button class="btn" id="bk">Yedek</button>
+  <button class="btn" id="add">Ayrıntılı ekle</button>
+  <button class="btn main" id="qa">Hızlı ekle</button>
+</div>
+
+<dialog id="dlg"><div class="dlg">
+  <h2 id="dt">Yeni kutu</h2>
+  <label class="f">Kutu adı<input id="fn" placeholder="Örn. Kış kıyafetleri" autocomplete="off"></label>
+  <label class="f">Konum notu (oda, raf vb.)<input id="fl" autocomplete="off"></label>
+  <label class="f">İçindekiler (her satıra bir eşya)<textarea id="fi"></textarea></label>
+  <label class="f">Not<input id="fo" autocomplete="off"></label>
+  <div class="f">Harita yeri: <b id="pt"></b>
+    <div class="acts"><button class="btn" id="ph" type="button">Buradayım</button><button class="btn" id="pm" type="button">Haritadan seç</button></div>
+    <div id="pe" style="margin-top:6px"></div>
+  </div>
+  <div class="acts">
+    <button class="btn del" id="rm" type="button">Sil</button>
+    <button class="btn" id="cx" type="button">Vazgeç</button>
+    <button class="btn main" id="sv" type="button">Kaydet</button>
+  </div>
+</div></dialog>
+
+<dialog id="qdlg"><div class="dlg">
+  <h2>Hızlı ekle</h2>
+  <p class="msg" id="qa1" style="margin:0 0 8px"></p>
+  <label class="f">Kutu adı ya da numarası<input id="qn" autocomplete="off"></label>
+  <label class="f">Konum notu (isteğe bağlı)<input id="ql" autocomplete="off"></label>
+  <div class="acts"><button class="btn" id="qx" type="button">Bitti</button><button class="btn main" id="qs" type="button">Buradayım, kaydet</button></div>
+  <p class="msg" id="qm"></p>
+</div></dialog>
+
+<dialog id="jdlg"><div class="dlg">
+  <h2>Toplu içe aktar</h2>
+  <p class="msg" style="margin:0 0 8px">Excel ya da Sheets’ten hücreleri kopyalayıp yapıştır, ya da bir CSV dosyası seç. Her satır bir kutu: ad, enlem, boylam, konum notu, içindekiler (| ile ayır), not. İlk satır başlıksa otomatik anlaşılır. Enlem ve boylam yerine tek hücrede “41.0082, 28.9784” de olur.</p>
+  <input type="file" id="jf" accept=".csv,.tsv,.txt,text/plain,text/csv">
+  <label class="f" style="margin-top:10px">Kutular<textarea id="jt" style="min-height:180px" placeholder="Kutu 1;41.0082;28.9784;Depo, 2. raf;makas|çekiç"></textarea></label>
+  <div class="acts"><button class="btn" id="jx" type="button">Kapat</button><button class="btn main" id="jg" type="button">İçe aktar</button></div>
+  <p class="msg" id="jm"></p>
+</div></dialog>
+
+<dialog id="bdlg"><div class="dlg">
+  <h2>Yedekle ve geri yükle</h2>
+  <p class="msg" style="margin:0 0 10px">Metni kopyalayıp sakla. Geri yüklemek için buraya yapıştır.</p>
+  <label class="f">Yedek verisi<textarea id="bt"></textarea></label>
+  <div class="acts">
+    <button class="btn" id="bc" type="button">Kopyala</button>
+    <button class="btn" id="bi" type="button">Geri yükle</button>
+    <button class="btn" id="bj" type="button">Toplu içe aktar</button>
+    <button class="btn main" id="bx" type="button">Kapat</button>
+  </div>
+  <p class="msg" id="bm"></p>
+</div></dialog>
+
+<script>
+(function(){
+var KEY="kutularim.v2",boxes=[],me=null,sel=null,q="",editId=null,placing=false,pend=null,dla=null,dlo=null,wid=null,mm=null,ac=null,rl=null;
+var $=function(i){return document.getElementById(i)};
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function norm(s){return String(s).toLocaleLowerCase("tr")}
+function load(){try{boxes=JSON.parse(localStorage.getItem(KEY)||"[]")}catch(e){boxes=[]}if(!Array.isArray(boxes))boxes=[]}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(boxes))}catch(e){}}
+function msg(t){$("msg").textContent=t}
+function get(id){return boxes.filter(function(b){return b.id===id})[0]}
+function has(b){return b.lat!=null&&b.lng!=null}
+function dist(a,b){var r=Math.PI/180,R=6371000,p=(b.lat-a.lat)*r,n=(b.lng-a.lng)*r,x=Math.pow(Math.sin(p/2),2)+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.pow(Math.sin(n/2),2);return 2*R*Math.asin(Math.sqrt(x))}
+function brg(a,b){var r=Math.PI/180,y=Math.sin((b.lng-a.lng)*r)*Math.cos(b.lat*r),x=Math.cos(a.lat*r)*Math.sin(b.lat*r)-Math.sin(a.lat*r)*Math.cos(b.lat*r)*Math.cos((b.lng-a.lng)*r);return(Math.atan2(y,x)/r+360)%360}
+function fd(m){return m<1000?Math.round(m)+" m":(m/1000).toFixed(1)+" km"}
+function dir(d){return["kuzey","kuzeydoğu","doğu","güneydoğu","güney","güneybatı","batı","kuzeybatı"][Math.round(d/45)%8]}
+function match(b,t){return norm(b.name+" "+b.loc+" "+b.note+" "+b.items.join(" ")).indexOf(t)>=0}
+
+var map=L.map("map",{zoomControl:false,attributionControl:false}).setView([41.0082,28.9784],12);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo(map);
+var mk=L.layerGroup().addTo(map);
+
+function drawBoxes(){
+  mk.clearLayers();var t=norm(q.trim());
+  boxes.forEach(function(b){
+    if(!has(b))return;
+    var on=!t||match(b,t),cls=(on?"":" dim")+(b.id===sel?" sel":"")+(t&&on?" hit2":"");
+    L.marker([b.lat,b.lng],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="pin'+cls+'"><i></i><span>'+esc(b.name)+'</span></div>'})})
+      .on("click",function(){pick(b.id)}).addTo(mk);
+  });
+}
+function route(){
+  if(rl){map.removeLayer(rl);rl=null}
+  var b=sel&&get(sel);
+  if(me&&b&&has(b))rl=L.polyline([[me.lat,me.lng],[b.lat,b.lng]],{color:"#0f766e",weight:4,dashArray:"4 10"}).addTo(map);
+}
+function renderInfo(){
+  var b=sel&&get(sel),h="";
+  if(b){
+    h='<div class="card"><h3>'+esc(b.name)+'</h3><div class="msg" style="margin:0">'+esc(b.loc||"")+'</div>';
+    if(me&&has(b)){var d=dist(me,b);h+='<div class="big">'+fd(d)+'</div><div class="msg" style="margin:0">'+dir(brg(me,b))+' yönünde'+(d<15?' · neredeyse yanındasın':'')+'</div>'}
+    else if(!has(b))h+='<div class="msg">Bu kutunun harita yeri yok. Düzenleyip yerini seç.</div>';
+    h+='<div class="msg">'+(b.items.length?esc(b.items.join(", ")):"İçinde eşya yok")+(b.note?" · "+esc(b.note):"")+'</div><div class="row">';
+    if(has(b))h+='<a class="btn main" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=walking&destination='+b.lat+','+b.lng+'">Yol tarifi</a>';
+    if(!has(b)&&me)h+='<button class="btn main" id="hl">Konumu buraya ata</button>';
+    h+='<button class="btn" id="ed">Düzenle</button><button class="btn" id="cl">Kapat</button></div></div>';
+  }
+  $("info").innerHTML=h;
+  if(b){if($("hl"))$("hl").onclick=function(){b.lat=me.lat;b.lng=me.lng;save();drawBoxes();route();renderList();renderInfo()};$("ed").onclick=function(){openEdit(b.id)};$("cl").onclick=function(){sel=null;drawBoxes();route();renderInfo()}}
+}
+function renderList(){
+  var t=norm(q.trim()),L2=boxes.filter(function(b){return!t||match(b,t)});
+  L2.forEach(function(b){b._d=(me&&has(b))?dist(me,b):null});
+  L2.sort(function(a,b){return(a._d==null?1e12:a._d)-(b._d==null?1e12:b._d)});
+  var h="";
+  L2.forEach(function(b){h+='<button class="item" data-id="'+b.id+'"><span><b>'+esc(b.name)+'</b><small>'+esc(b.loc||(b.items.length+" eşya"))+'</small></span><span class="dist">'+(b._d!=null?fd(b._d):(has(b)?"":"yeri yok"))+'</span></button>'});
+  var nl=boxes.filter(function(b){return!has(b)}).length;if(h&&nl)h='<div class="msg">'+nl+' kutunun harita yeri henüz yok.</div>'+h;
+  $("list").innerHTML=h||'<div class="empty">'+(boxes.length?"Eşleşen kutu yok.":"Henüz kutu yok. Kutunun yanındayken “Kutu ekle” ile yerini kaydet.")+'</div>';
+}
+$("list").addEventListener("click",function(e){var b=e.target.closest(".item");if(b)pick(b.getAttribute("data-id"))});
+function pick(id){
+  if(placing)return;
+  sel=id;var b=get(id);drawBoxes();route();renderList();renderInfo();
+  if(!b||!has(b))return;
+  if(me)map.fitBounds([[me.lat,me.lng],[b.lat,b.lng]],{padding:[50,50],maxZoom:18});else map.setView([b.lat,b.lng],18);
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function updateMe(){
+  if(!me)return;
+  var ll=[me.lat,me.lng];
+  if(!mm){ac=L.circle(ll,{radius:me.acc,color:"#1a73e8",weight:1,fillOpacity:.12,interactive:false}).addTo(map);mm=L.circleMarker(ll,{radius:8,color:"#fff",weight:3,fillColor:"#1a73e8",fillOpacity:1,interactive:false}).addTo(map)}
+  else{mm.setLatLng(ll);ac.setLatLng(ll);ac.setRadius(me.acc)}
+  route();renderList();renderInfo();
+}
+function gps(){
+  if(!navigator.geolocation){msg("Bu cihaz konum özelliğini desteklemiyor.");return}
+  if(wid!=null)navigator.geolocation.clearWatch(wid);
+  wid=navigator.geolocation.watchPosition(function(p){
+    var first=!me;me={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};msg("");
+    if(first&&!sel){var pts=[[me.lat,me.lng]];boxes.forEach(function(b){if(has(b))pts.push([b.lat,b.lng])});
+      if(pts.length>1)map.fitBounds(pts,{padding:[40,40],maxZoom:17});else map.setView(pts[0],17)}
+    updateMe();
+  },function(){msg("Konumun alınamadı. Cihazda konum iznini açıp “Beni bul”a bas.")},{enableHighAccuracy:true,maximumAge:3000,timeout:20000});
+}
+$("me").onclick=function(){if(me)map.setView([me.lat,me.lng],Math.max(map.getZoom(),17));else gps()};
+$("q").addEventListener("input",function(e){q=e.target.value;drawBoxes();renderList()});
+
+function ptxt(){$("pt").textContent=dla==null?"seçilmedi":dla.toFixed(5)+", "+dlo.toFixed(5);$("pe").textContent=""}
+function openEdit(id,dr){
+  editId=id;var b=get(id);
+  dla=b&&has(b)?b.lat:null;dlo=b&&has(b)?b.lng:null;
+  $("dt").textContent=b?"Kutuyu düzenle":"Yeni kutu";
+  $("fn").value=b?b.name:"";$("fl").value=b?b.loc:"";$("fi").value=b?b.items.join("\n"):"";$("fo").value=b?b.note:"";
+  if(dr){dla=dr.lat;dlo=dr.lng;$("fn").value=dr.name;$("fl").value=dr.loc;$("fi").value=dr.items;$("fo").value=dr.note}
+  $("rm").style.display=b?"":"none";ptxt();$("dlg").showModal();
+}
+$("add").onclick=function(){openEdit(null)};
+$("cx").onclick=function(){$("dlg").close()};
+$("ph").onclick=function(){if(me){dla=me.lat;dlo=me.lng;ptxt()}else $("pe").textContent="Konumun henüz alınamadı. Konum iznini kontrol et."};
+$("pm").onclick=function(){
+  pend={id:editId,name:$("fn").value,loc:$("fl").value,items:$("fi").value,note:$("fo").value,lat:dla,lng:dlo};
+  $("dlg").close();placing=true;$("map").classList.add("place");msg("Kutunun yerine haritada dokun.");
+};
+map.on("click",function(e){
+  if(!placing)return;
+  placing=false;$("map").classList.remove("place");msg("");
+  pend.lat=e.latlng.lat;pend.lng=e.latlng.lng;var d=pend;pend=null;openEdit(d.id,d);
+});
+$("sv").onclick=function(){
+  var name=$("fn").value.trim();
+  if(!name){$("fn").focus();return}
+  var d={name:name,loc:$("fl").value.trim(),items:$("fi").value.split("\n").map(function(s){return s.trim()}).filter(Boolean),note:$("fo").value.trim(),lat:dla,lng:dlo};
+  if(editId){boxes=boxes.map(function(b){return b.id===editId?Object.assign({},b,d):b})}
+  else{d.id="b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);boxes.unshift(d);editId=d.id}
+  save();$("dlg").close();drawBoxes();route();renderList();renderInfo();
+};
+$("rm").onclick=function(){if(confirm("Bu kutu silinsin mi?")){boxes=boxes.filter(function(b){return b.id!==editId});if(sel===editId)sel=null;save();$("dlg").close();drawBoxes();route();renderList();renderInfo()}};
+
+$("bk").onclick=function(){$("bt").value=JSON.stringify(boxes);$("bm").textContent="";$("bdlg").showModal()};
+$("bx").onclick=function(){$("bdlg").close()};
+$("bc").onclick=function(){var t=$("bt");t.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}$("bm").textContent=ok?"Kopyalandı.":"Metin seçildi, elle kopyala."};
+$("bi").onclick=function(){
+  try{var a=JSON.parse($("bt").value);if(!Array.isArray(a))throw 0;
+    boxes=a.filter(function(b){return b&&b.name}).map(function(b,i){return{id:b.id||"i"+Date.now().toString(36)+i,name:String(b.name),loc:String(b.loc||""),items:Array.isArray(b.items)?b.items.map(String):[],note:String(b.note||""),lat:typeof b.lat==="number"?b.lat:null,lng:typeof b.lng==="number"?b.lng:null}});
+    save();drawBoxes();route();renderList();renderInfo();$("bm").textContent=boxes.length+" kutu geri yüklendi.";
+  }catch(e){$("bm").textContent="Yedek okunamadı. Metnin tamamını yapıştır."}
+};
+load();
+function num(s){s=String(s==null?"":s).trim();if(!/^-?\d+(?:[.,]\d+)?$/.test(s))return null;return parseFloat(s.replace(",","."))}
+function fixLL(a,b){if(a==null||b==null)return null;if(Math.abs(a)>90&&Math.abs(b)<=90){var t=a;a=b;b=t}if(Math.abs(a)>90||Math.abs(b)>180)return null;return[a,b]}
+function parseCoord(s){var m=String(s).match(/(-?\d{1,3}(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)/);return m?fixLL(num(m[1]),num(m[2])):null}
+function doImport(txt){
+  txt=txt.replace(/^\uFEFF/,"");
+  var lines=txt.split(/\r?\n/).filter(function(l){return l.trim()});
+  if(!lines.length)return"Yapıştırılan metin boş.";
+  var dl=lines[0].indexOf("\t")>=0?"\t":(lines[0].indexOf(";")>=0?";":",");
+  var rows=lines.map(function(l){return l.split(dl).map(function(c){return c.trim().replace(/^"|"$/g,"")})});
+  var col={name:0,lat:1,lng:2,loc:3,items:4,note:5,xy:-1},h=rows[0];
+  if(num(h[1])==null&&num(h[2])==null&&h.some(function(c){return/^(ad|adı|isim|kutu|name|enlem|lat|boylam|lon|lng|koordinat)/i.test(c.trim())})){
+    rows.shift();col={name:-1,lat:-1,lng:-1,loc:-1,items:-1,note:-1,xy:-1};
+    h.forEach(function(c,i){c=norm(c);
+      if(/^(ad|adı|isim|kutu|name)/.test(c))col.name=i;
+      else if(/^(enlem|lat)/.test(c))col.lat=i;
+      else if(/^(boylam|lon|lng)/.test(c))col.lng=i;
+      else if(/^(koordinat|coord)/.test(c))col.xy=i;
+      else if(/^(konum|yer|raf|loc)/.test(c))col.loc=i;
+      else if(/^(içerik|eşya|item)/.test(c))col.items=i;
+      else if(/^(not|note|açıklama)/.test(c))col.note=i});
+  }
+  var add=0,dup=0,noLoc=0,bad=0,uid=Date.now().toString(36),fresh=[];
+  rows.forEach(function(r,i){
+    var name=(r[col.name<0?0:col.name]||"").trim();
+    if(!name){bad++;return}
+    var ll=null;
+    if(col.lat>=0&&col.lng>=0)ll=fixLL(num(r[col.lat]),num(r[col.lng]));
+    if(!ll)ll=parseCoord(r[col.xy>=0?col.xy:(col.lat>=0?col.lat:1)]||"");
+    if(!ll)noLoc++;
+    var g=function(k){return col[k]>=0&&r[col[k]]?r[col[k]].trim():""};
+    var b={id:"m"+uid+i,name:name,loc:g("loc"),items:g("items")?g("items").split("|").map(function(s){return s.trim()}).filter(Boolean):[],note:g("note"),lat:ll?ll[0]:null,lng:ll?ll[1]:null};
+    var same=boxes.concat(fresh).some(function(x){return x.name===b.name&&x.lat===b.lat&&x.lng===b.lng});
+    if(same){dup++;return}
+    fresh.push(b);add++;
+  });
+  boxes=fresh.concat(boxes);save();drawBoxes();route();renderList();renderInfo();
+  var pts=boxes.filter(has).map(function(b){return[b.lat,b.lng]});
+  if(pts.length)map.fitBounds(pts,{padding:[40,40],maxZoom:17});
+  return add+" kutu eklendi."+(dup?" "+dup+" tekrar atlandı.":"")+(noLoc?" "+noLoc+" kutunun konumu okunamadı, haritada görünmez.":"")+(bad?" "+bad+" satırın adı boş, atlandı.":"");
+}
+$("bj").onclick=function(){$("bdlg").close();$("jm").textContent="";$("jdlg").showModal()};
+$("jx").onclick=function(){$("jdlg").close()};
+$("jg").onclick=function(){$("jm").textContent=doImport($("jt").value)};
+$("jf").onchange=function(e){
+  var f=e.target.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){var s=rd.result;
+    if(s.indexOf("\uFFFD")>=0){var r2=new FileReader();r2.onload=function(){$("jt").value=r2.result};r2.readAsText(f,"windows-1254")}
+    else $("jt").value=s};
+  rd.readAsText(f);e.target.value="";
+};
+var lastQ="";
+function nextName(n){var m=n.match(/^(.*?)(\d+)$/);return m?m[1]+(parseInt(m[2],10)+1):""}
+function qacc(){if(!$("qdlg").open)return;$("qa1").textContent=me?"Konum doğruluğu: ±"+Math.round(me.acc)+" m"+(me.acc>25?". Biraz bekle, sayı küçülünce kaydet.":". Kaydetmeye hazır."):"Konum bekleniyor…"}
+setInterval(qacc,1000);
+$("qa").onclick=function(){$("qn").value=lastQ;$("ql").value="";$("qm").textContent="";$("qdlg").showModal();qacc();if(!me)gps()};
+$("qx").onclick=function(){$("qdlg").close()};
+$("qs").onclick=function(){
+  var name=$("qn").value.trim();
+  if(!name){$("qn").focus();return}
+  if(!me){$("qm").textContent="Konum henüz alınamadı. Konum iznini kontrol et.";return}
+  var ex=boxes.filter(function(b){return norm(b.name)===norm(name)})[0],nt=$("ql").value.trim();
+  if(ex){
+    if(has(ex)&&!confirm("“"+name+"” kutusunun konumu zaten kayıtlı. Yeni konumla güncellensin mi?"))return;
+    ex.lat=me.lat;ex.lng=me.lng;if(nt)ex.loc=nt;
+  }else boxes.unshift({id:"q"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:name,loc:nt,items:[],note:"",lat:me.lat,lng:me.lng});
+  save();drawBoxes();route();renderList();
+  $("qm").textContent="“"+name+"” kaydedildi (±"+Math.round(me.acc)+" m). Konumu kayıtlı kutu sayısı: "+boxes.filter(has).length+".";
+  lastQ=nextName(name);$("qn").value=lastQ;$("qn").focus();
+};
+var pts0=boxes.filter(has).map(function(b){return[b.lat,b.lng]});
+if(pts0.length)map.fitBounds(pts0,{padding:[40,40],maxZoom:17});
+drawBoxes();renderList();renderInfo();gps();
+})();
+</script>
+</body>
+</html>
