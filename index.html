@@ -77,6 +77,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   </div>
   <div class="mw"><div id="map"></div><div class="attr">© OpenStreetMap</div></div>
   <div class="msg" id="msg"></div>
+  <div class="msg" id="warn" hidden style="color:var(--danger);font-weight:500"></div>
   <div id="info"></div>
   <div id="list"></div>
 </div>
@@ -141,7 +142,12 @@ var $=function(i){return document.getElementById(i)};
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function norm(s){return String(s).toLocaleLowerCase("tr")}
 function load(){try{boxes=JSON.parse(localStorage.getItem(KEY)||"[]")}catch(e){boxes=[]}if(!Array.isArray(boxes))boxes=[]}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(boxes))}catch(e){}}
+var idb=null;
+function chk(ok){var w=$("warn");w.hidden=ok;w.textContent=ok?"":"Bu tarayıcı kutuları kalıcı kaydetmiyor. Özel gezinti açıksa kapat ve uygulamayı ana ekran simgesinden aç. Şimdilik “Yedek” ile metni kaydet."}
+function idbOpen(cb){try{var r=indexedDB.open("kutularim",1);r.onupgradeneeded=function(){r.result.createObjectStore("kv")};r.onsuccess=function(){idb=r.result;cb()};r.onerror=function(){cb()}}catch(e){cb()}}
+function idbPut(v){if(!idb)return;try{idb.transaction("kv","readwrite").objectStore("kv").put(v,KEY)}catch(e){}}
+function idbGet(cb){if(!idb)return cb(null);try{var g=idb.transaction("kv").objectStore("kv").get(KEY);g.onsuccess=function(){cb(g.result||null)};g.onerror=function(){cb(null)}}catch(e){cb(null)}}
+function save(){var s=JSON.stringify(boxes),ok=false;try{localStorage.setItem(KEY,s);ok=localStorage.getItem(KEY)===s}catch(e){}idbPut(s);chk(ok)}
 function msg(t){$("msg").textContent=t}
 function get(id){return boxes.filter(function(b){return b.id===id})[0]}
 function has(b){return b.lat!=null&&b.lng!=null}
@@ -331,6 +337,12 @@ $("qs").onclick=function(){
   $("qm").textContent="“"+name+"” kaydedildi (±"+Math.round(me.acc)+" m). Konumu kayıtlı kutu sayısı: "+boxes.filter(has).length+".";
   lastQ=nextName(name);$("qn").value=lastQ;$("qn").focus();
 };
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+(function(){var ok=false;try{localStorage.setItem("kt","1");ok=localStorage.getItem("kt")==="1"}catch(e){}chk(ok)})();
+idbOpen(function(){
+  if(boxes.length){idbPut(JSON.stringify(boxes));return}
+  idbGet(function(s){if(!s)return;try{var a=JSON.parse(s);if(Array.isArray(a)&&a.length){boxes=a;drawBoxes();renderList();renderInfo();var p=boxes.filter(has).map(function(b){return[b.lat,b.lng]});if(p.length)map.fitBounds(p,{padding:[40,40],maxZoom:17})}}catch(e){}});
+});
 var pts0=boxes.filter(has).map(function(b){return[b.lat,b.lng]});
 if(pts0.length)map.fitBounds(pts0,{padding:[40,40],maxZoom:17});
 drawBoxes();renderList();renderInfo();gps();
