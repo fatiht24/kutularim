@@ -33,7 +33,7 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Outfit,system-ui,-apple-system,"Segoe UI",sans-serif}
 .wrap{max-width:680px;margin:0 auto;padding:12px 14px 100px}
 input,textarea,button{font:inherit;color:inherit}
-.top{display:flex;gap:8px;margin-bottom:8px}
+.top{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
 .search{flex:1;min-width:0;padding:11px 13px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface)}
 input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .btn{border:1.5px solid var(--line);background:var(--surface);padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:500}
@@ -49,6 +49,7 @@ input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);
 .pin span{background:var(--surface);color:var(--ink);border:1.5px solid var(--accent);border-radius:7px;padding:1px 7px;font-size:12px;font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis}
 .pin.dim{opacity:.25}.pin.hit2 span,.pin.sel span{background:var(--accent);color:var(--on-accent)}
 .pin.sel i{background:var(--tag);box-shadow:0 0 0 2.5px var(--accent)}
+.pin.done{opacity:.55}.pin.done i{background:var(--mute)}
 .card{background:var(--surface);border:1.5px solid var(--accent);border-radius:14px;padding:13px 15px;margin:10px 0}
 .card h3{margin:0 0 2px;font-size:19px}
 .big{font-size:26px;font-weight:700;color:var(--accent)}
@@ -76,6 +77,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <input class="search" id="q" type="search" placeholder="Kutu veya eşya ara" aria-label="Ara">
     <button class="btn" id="me" aria-label="Beni bul">Beni bul</button>
   </div>
+  <div class="top" id="hrow" hidden><select class="search" id="hs" aria-label="Mahalle"></select></div>
+  <div class="top" id="hact" hidden><button class="btn main" id="rs">Rotayı başlat</button><button class="btn" id="ro">Yakına göre sırala</button><button class="btn" id="rr">Sıfırla</button></div>
   <div class="mw"><div id="map"></div><div class="attr">© OpenStreetMap, rota: OSRM (FOSSGIS)</div></div>
   <div class="msg" id="msg"></div>
   <div class="msg" id="warn" hidden style="color:var(--danger);font-weight:500"></div>
@@ -94,6 +97,8 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <label class="f">Konum notu (oda, raf vb.)<input id="fl" autocomplete="off"></label>
   <label class="f">İçindekiler (her satıra bir eşya)<textarea id="fi"></textarea></label>
   <label class="f">Not<input id="fo" autocomplete="off"></label>
+  <label class="f">Mahalle<input id="fh" list="hoods" autocomplete="off"></label><datalist id="hoods"></datalist>
+  <label class="f">Rota sırası (sayı)<input id="fs" inputmode="numeric" autocomplete="off"></label>
   <div class="f">Harita yeri: <b id="pt"></b>
     <div class="acts"><button class="btn" id="ph" type="button">Buradayım</button><button class="btn" id="pm" type="button">Haritadan seç</button></div>
     <div id="pe" style="margin-top:6px"></div>
@@ -109,6 +114,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
   <h2>Hızlı ekle</h2>
   <p class="msg" id="qa1" style="margin:0 0 8px"></p>
   <label class="f">Kutu adı ya da numarası<input id="qn" autocomplete="off"></label>
+  <label class="f">Mahalle<input id="qh" list="hoods" autocomplete="off"></label>
   <label class="f">Konum notu (isteğe bağlı)<input id="ql" autocomplete="off"></label>
   <div class="acts"><button class="btn" id="qx" type="button">Bitti</button><button class="btn main" id="qs" type="button">Buradayım, kaydet</button></div>
   <p class="msg" id="qm"></p>
@@ -116,7 +122,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 
 <dialog id="jdlg"><div class="dlg">
   <h2>Toplu içe aktar</h2>
-  <p class="msg" style="margin:0 0 8px">Excel ya da Sheets’ten hücreleri kopyalayıp yapıştır, ya da bir CSV dosyası seç. Her satır bir kutu: ad, enlem, boylam, konum notu, içindekiler (| ile ayır), not. İlk satır başlıksa otomatik anlaşılır. Enlem ve boylam yerine tek hücrede “41.0082, 28.9784” de olur.</p>
+  <p class="msg" style="margin:0 0 8px">Excel ya da Sheets’ten hücreleri kopyalayıp yapıştır, ya da bir CSV dosyası seç. Her satır bir kutu: ad, enlem, boylam, konum notu, içindekiler (| ile ayır), not, mahalle. Mahalle sütunu varsa kutular satır sırasıyla o mahallenin rotasına eklenir. İlk satır başlıksa otomatik anlaşılır. Enlem ve boylam yerine tek hücrede “41.0082, 28.9784” de olur.</p>
   <input type="file" id="jf" accept=".csv,.tsv,.txt,text/plain,text/csv">
   <label class="f" style="margin-top:10px">Kutular<textarea id="jt" style="min-height:180px" placeholder="Kutu 1;41.0082;28.9784;Depo, 2. raf;makas|çekiç"></textarea></label>
   <div class="acts"><button class="btn" id="jx" type="button">Kapat</button><button class="btn main" id="jg" type="button">İçe aktar</button></div>
@@ -163,11 +169,11 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19}).addTo
 var mk=L.layerGroup().addTo(map);
 
 function drawBoxes(){
-  mk.clearLayers();var t=norm(q.trim());
+  mk.clearLayers();seqLine();var t=norm(q.trim());
   boxes.forEach(function(b){
     if(!has(b))return;
-    var on=!t||match(b,t),cls=(on?"":" dim")+(b.id===sel?" sel":"")+(t&&on?" hit2":"");
-    L.marker([b.lat,b.lng],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="pin'+cls+'"><i></i><span>'+esc(b.name)+'</span></div>'})})
+    var on=(!hood||b.hood===hood)&&(!t||match(b,t)),cls=(on?"":" dim")+(b.done?" done":"")+(b.id===sel?" sel":"")+(t&&on?" hit2":"");
+    L.marker([b.lat,b.lng],{icon:L.divIcon({className:"",iconSize:[0,0],html:'<div class="pin'+cls+'"><i></i><span>'+(hood&&b.hood===hood&&b.ord!=null?b.ord+". ":"")+esc(b.name)+'</span></div>'})})
       .on("click",function(){pick(b.id)}).addTo(mk);
   });
 }
@@ -179,23 +185,24 @@ function route0(){
 function renderInfo(){
   var b=sel&&get(sel),h="";
   if(b){
-    h='<div class="card"><h3>'+esc(b.name)+'</h3><div class="msg" style="margin:0">'+esc(b.loc||"")+'</div>';
+    h='<div class="card"><h3>'+esc(b.name)+'</h3><div class="msg" style="margin:0">'+esc((b.hood?b.hood+(b.ord!=null?", "+b.ord+". kutu":"")+(b.loc?", ":""):"")+(b.loc||""))+(hood&&b.hood===hood?'<br>'+hcount():'')+'</div>';
     if(me&&has(b)){var d=dist(me,b);h+='<div class="big">'+fd(d)+'</div><div class="msg" style="margin:0">'+dir(brg(me,b))+' yönünde'+(d<15?' · neredeyse yanındasın':'')+'</div>'}
     else if(!has(b))h+='<div class="msg">Bu kutunun harita yeri yok. Düzenleyip yerini seç.</div>';
     h+=(nav&&me&&has(b)?'<div class="nav">'+nav+'</div>':'')+'<div class="msg">'+(b.items.length?esc(b.items.join(", ")):"İçinde eşya yok")+(b.note?" · "+esc(b.note):"")+'</div><div class="row">';
     
+    if(hood&&b.hood===hood)h+='<button class="btn main" id="nx">Tamam, sıradaki</button><button class="btn" id="sk">Atla</button>';
     if(!has(b)&&me)h+='<button class="btn main" id="hl">Konumu buraya ata</button>';
     h+='<button class="btn" id="ed">Düzenle</button><button class="btn" id="cl">Kapat</button></div></div>';
   }
   $("info").innerHTML=h;
-  if(b){if($("hl"))$("hl").onclick=function(){b.lat=me.lat;b.lng=me.lng;save();drawBoxes();route();renderList();renderInfo()};$("ed").onclick=function(){openEdit(b.id)};$("cl").onclick=function(){sel=null;drawBoxes();route();renderInfo()}}
+  if(b){if($("nx"))$("nx").onclick=function(){b.done=true;save();goNext(b)};if($("sk"))$("sk").onclick=function(){goNext(b)};if($("hl"))$("hl").onclick=function(){b.lat=me.lat;b.lng=me.lng;save();drawBoxes();route();renderList();renderInfo()};$("ed").onclick=function(){openEdit(b.id)};$("cl").onclick=function(){sel=null;drawBoxes();route();renderInfo()}}
 }
-function renderList(){
-  var t=norm(q.trim()),L2=boxes.filter(function(b){return!t||match(b,t)});
+function renderList(){fillHoods();
+  var t=norm(q.trim()),L2=boxes.filter(function(b){return(!hood||b.hood===hood)&&(!t||match(b,t))});
   L2.forEach(function(b){b._d=(me&&has(b))?dist(me,b):null});
-  L2.sort(function(a,b){return(a._d==null?1e12:a._d)-(b._d==null?1e12:b._d)});
+  L2.sort(hood?function(a,b){return(a.ord==null?1e9:a.ord)-(b.ord==null?1e9:b.ord)}:function(a,b){return(a._d==null?1e12:a._d)-(b._d==null?1e12:b._d)});
   var h="";
-  L2.forEach(function(b){h+='<button class="item" data-id="'+b.id+'"><span><b>'+esc(b.name)+'</b><small>'+esc(b.loc||(b.items.length+" eşya"))+'</small></span><span class="dist">'+(b._d!=null?fd(b._d):(has(b)?"":"yeri yok"))+'</span></button>'});
+  L2.forEach(function(b){h+='<button class="item" data-id="'+b.id+'"><span><b>'+(hood&&b.ord!=null?b.ord+". ":"")+(b.done?"✓ ":"")+esc(b.name)+'</b><small>'+esc(b.loc||(b.items.length+" eşya"))+'</small></span><span class="dist">'+(b._d!=null?fd(b._d):(has(b)?"":"yeri yok"))+'</span></button>'});
   var nl=boxes.filter(function(b){return!has(b)}).length;if(h&&nl)h='<div class="msg">'+nl+' kutunun harita yeri henüz yok.</div>'+h;
   $("list").innerHTML=h||'<div class="empty">'+(boxes.length?"Eşleşen kutu yok.":"Henüz kutu yok. Kutunun yanındayken “Kutu ekle” ile yerini kaydet.")+'</div>';
 }
@@ -232,15 +239,15 @@ function openEdit(id,dr){
   editId=id;var b=get(id);
   dla=b&&has(b)?b.lat:null;dlo=b&&has(b)?b.lng:null;
   $("dt").textContent=b?"Kutuyu düzenle":"Yeni kutu";
-  $("fn").value=b?b.name:"";$("fl").value=b?b.loc:"";$("fi").value=b?b.items.join("\n"):"";$("fo").value=b?b.note:"";
-  if(dr){dla=dr.lat;dlo=dr.lng;$("fn").value=dr.name;$("fl").value=dr.loc;$("fi").value=dr.items;$("fo").value=dr.note}
+  $("fn").value=b?b.name:"";$("fl").value=b?b.loc:"";$("fi").value=b?b.items.join("\n"):"";$("fo").value=b?b.note:"";$("fh").value=b?(b.hood||""):hood;$("fs").value=b&&b.ord!=null?b.ord:"";
+  if(dr){dla=dr.lat;dlo=dr.lng;$("fn").value=dr.name;$("fl").value=dr.loc;$("fi").value=dr.items;$("fo").value=dr.note;$("fh").value=dr.hood;$("fs").value=dr.ord}
   $("rm").style.display=b?"":"none";ptxt();$("dlg").showModal();
 }
 $("add").onclick=function(){openEdit(null)};
 $("cx").onclick=function(){$("dlg").close()};
 $("ph").onclick=function(){if(me){dla=me.lat;dlo=me.lng;ptxt()}else $("pe").textContent="Konumun henüz alınamadı. Konum iznini kontrol et."};
 $("pm").onclick=function(){
-  pend={id:editId,name:$("fn").value,loc:$("fl").value,items:$("fi").value,note:$("fo").value,lat:dla,lng:dlo};
+  pend={id:editId,name:$("fn").value,loc:$("fl").value,items:$("fi").value,note:$("fo").value,hood:$("fh").value,ord:$("fs").value,lat:dla,lng:dlo};
   $("dlg").close();placing=true;$("map").classList.add("place");msg("Kutunun yerine haritada dokun.");
 };
 map.on("click",function(e){
@@ -251,7 +258,8 @@ map.on("click",function(e){
 $("sv").onclick=function(){
   var name=$("fn").value.trim();
   if(!name){$("fn").focus();return}
-  var d={name:name,loc:$("fl").value.trim(),items:$("fi").value.split("\n").map(function(s){return s.trim()}).filter(Boolean),note:$("fo").value.trim(),lat:dla,lng:dlo};
+  var d={name:name,loc:$("fl").value.trim(),items:$("fi").value.split("\n").map(function(s){return s.trim()}).filter(Boolean),note:$("fo").value.trim(),hood:$("fh").value.trim(),ord:num($("fs").value),lat:dla,lng:dlo};
+  if(d.ord==null&&d.hood)d.ord=maxOrd(d.hood)+1;
   if(editId){boxes=boxes.map(function(b){return b.id===editId?Object.assign({},b,d):b})}
   else{d.id="b"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);boxes.unshift(d);editId=d.id}
   save();$("dlg").close();drawBoxes();route();renderList();renderInfo();
@@ -263,7 +271,7 @@ $("bx").onclick=function(){$("bdlg").close()};
 $("bc").onclick=function(){var t=$("bt");t.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}$("bm").textContent=ok?"Kopyalandı.":"Metin seçildi, elle kopyala."};
 $("bi").onclick=function(){
   try{var a=JSON.parse($("bt").value);if(!Array.isArray(a))throw 0;
-    boxes=a.filter(function(b){return b&&b.name}).map(function(b,i){return{id:b.id||"i"+Date.now().toString(36)+i,name:String(b.name),loc:String(b.loc||""),items:Array.isArray(b.items)?b.items.map(String):[],note:String(b.note||""),lat:typeof b.lat==="number"?b.lat:null,lng:typeof b.lng==="number"?b.lng:null}});
+    boxes=a.filter(function(b){return b&&b.name}).map(function(b,i){return{id:b.id||"i"+Date.now().toString(36)+i,name:String(b.name),loc:String(b.loc||""),items:Array.isArray(b.items)?b.items.map(String):[],note:String(b.note||""),hood:String(b.hood||""),ord:typeof b.ord==="number"?b.ord:null,done:!!b.done,lat:typeof b.lat==="number"?b.lat:null,lng:typeof b.lng==="number"?b.lng:null}});
     save();drawBoxes();route();renderList();renderInfo();$("bm").textContent=boxes.length+" kutu geri yüklendi.";
   }catch(e){$("bm").textContent="Yedek okunamadı. Metnin tamamını yapıştır."}
 };
@@ -277,9 +285,9 @@ function doImport(txt){
   if(!lines.length)return"Yapıştırılan metin boş.";
   var dl=lines[0].indexOf("\t")>=0?"\t":(lines[0].indexOf(";")>=0?";":",");
   var rows=lines.map(function(l){return l.split(dl).map(function(c){return c.trim().replace(/^"|"$/g,"")})});
-  var col={name:0,lat:1,lng:2,loc:3,items:4,note:5,xy:-1},h=rows[0];
+  var col={name:0,lat:1,lng:2,loc:3,items:4,note:5,hood:6,ord:-1,xy:-1},h=rows[0];
   if(num(h[1])==null&&num(h[2])==null&&h.some(function(c){return/^(ad|adı|isim|kutu|name|enlem|lat|boylam|lon|lng|koordinat)/i.test(c.trim())})){
-    rows.shift();col={name:-1,lat:-1,lng:-1,loc:-1,items:-1,note:-1,xy:-1};
+    rows.shift();col={name:-1,lat:-1,lng:-1,loc:-1,items:-1,note:-1,hood:-1,ord:-1,xy:-1};
     h.forEach(function(c,i){c=norm(c);
       if(/^(ad|adı|isim|kutu|name)/.test(c))col.name=i;
       else if(/^(enlem|lat)/.test(c))col.lat=i;
@@ -287,9 +295,11 @@ function doImport(txt){
       else if(/^(koordinat|coord)/.test(c))col.xy=i;
       else if(/^(konum|yer|raf|loc)/.test(c))col.loc=i;
       else if(/^(içerik|eşya|item)/.test(c))col.items=i;
-      else if(/^(not|note|açıklama)/.test(c))col.note=i});
+      else if(/^(not|note|açıklama)/.test(c))col.note=i;
+      else if(/^(mahalle|hood)/.test(c))col.hood=i;
+      else if(/^(sıra|sira|ord)/.test(c))col.ord=i});
   }
-  var add=0,dup=0,noLoc=0,bad=0,uid=Date.now().toString(36),fresh=[];
+  var add=0,dup=0,noLoc=0,bad=0,uid=Date.now().toString(36),fresh=[],hc={};
   rows.forEach(function(r,i){
     var name=(r[col.name<0?0:col.name]||"").trim();
     if(!name){bad++;return}
@@ -298,7 +308,8 @@ function doImport(txt){
     if(!ll)ll=parseCoord(r[col.xy>=0?col.xy:(col.lat>=0?col.lat:1)]||"");
     if(!ll)noLoc++;
     var g=function(k){return col[k]>=0&&r[col[k]]?r[col[k]].trim():""};
-    var b={id:"m"+uid+i,name:name,loc:g("loc"),items:g("items")?g("items").split("|").map(function(s){return s.trim()}).filter(Boolean):[],note:g("note"),lat:ll?ll[0]:null,lng:ll?ll[1]:null};
+    var hd=g("hood"),od=num(g("ord"));if(od==null&&hd){hc[hd]=(hc[hd]!=null?hc[hd]:maxOrd(hd))+1;od=hc[hd]}
+    var b={id:"m"+uid+i,name:name,loc:g("loc"),items:g("items")?g("items").split("|").map(function(s){return s.trim()}).filter(Boolean):[],note:g("note"),hood:hd,ord:od,lat:ll?ll[0]:null,lng:ll?ll[1]:null};
     var same=boxes.concat(fresh).some(function(x){return x.name===b.name&&x.lat===b.lat&&x.lng===b.lng});
     if(same){dup++;return}
     fresh.push(b);add++;
@@ -323,7 +334,7 @@ var lastQ="";
 function nextName(n){var m=n.match(/^(.*?)(\d+)$/);return m?m[1]+(parseInt(m[2],10)+1):""}
 function qacc(){if(!$("qdlg").open)return;$("qa1").textContent=me?"Konum doğruluğu: ±"+Math.round(me.acc)+" m"+(me.acc>25?". Biraz bekle, sayı küçülünce kaydet.":". Kaydetmeye hazır."):"Konum bekleniyor…"}
 setInterval(qacc,1000);
-$("qa").onclick=function(){$("qn").value=lastQ;$("ql").value="";$("qm").textContent="";$("qdlg").showModal();qacc();if(!me)gps()};
+$("qa").onclick=function(){$("qn").value=lastQ;$("ql").value="";if(hood)$("qh").value=hood;$("qm").textContent="";$("qdlg").showModal();qacc();if(!me)gps()};
 $("qx").onclick=function(){$("qdlg").close()};
 $("qs").onclick=function(){
   var name=$("qn").value.trim();
@@ -333,7 +344,8 @@ $("qs").onclick=function(){
   if(ex){
     if(has(ex)&&!confirm("“"+name+"” kutusunun konumu zaten kayıtlı. Yeni konumla güncellensin mi?"))return;
     ex.lat=me.lat;ex.lng=me.lng;if(nt)ex.loc=nt;
-  }else boxes.unshift({id:"q"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:name,loc:nt,items:[],note:"",lat:me.lat,lng:me.lng});
+    var qh=$("qh").value.trim();if(qh){ex.hood=qh;if(ex.ord==null)ex.ord=maxOrd(qh)+1}
+  }else boxes.unshift({id:"q"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:name,loc:nt,items:[],note:"",hood:$("qh").value.trim(),ord:$("qh").value.trim()?maxOrd($("qh").value.trim())+1:null,lat:me.lat,lng:me.lng});
   save();drawBoxes();route();renderList();
   $("qm").textContent="“"+name+"” kaydedildi (±"+Math.round(me.acc)+" m). Konumu kayıtlı kutu sayısı: "+boxes.filter(has).length+".";
   lastQ=nextName(name);$("qn").value=lastQ;$("qn").focus();
@@ -376,6 +388,43 @@ function route(){
   var now=Date.now();
   if(now-lastT>=4000&&(!lastP||dist(me,lastP)>40)){lastT=now;lastP={lat:me.lat,lng:me.lng,id:sel};walk(b)}
 }
+var hood="",hk=null,sq=null;
+function hoodList(){var m={};boxes.forEach(function(b){if(b.hood)m[b.hood]=1});return Object.keys(m).sort(function(a,b){return a.localeCompare(b,"tr")})}
+function maxOrd(h){var m=0;boxes.forEach(function(b){if(b.hood===h&&b.ord!=null&&b.ord>m)m=b.ord});return m}
+function hcount(){var a=boxes.filter(function(b){return b.hood===hood});return a.filter(function(b){return b.done}).length+" / "+a.length+" kutu tamam"}
+function ordered(){return boxes.filter(function(b){return b.hood===hood&&has(b)}).sort(function(a,b){return(a.ord==null?1e9:a.ord)-(b.ord==null?1e9:b.ord)})}
+function seqLine(){if(sq){map.removeLayer(sq);sq=null}if(!hood)return;var o=ordered();if(o.length>1)sq=L.polyline(o.map(function(b){return[b.lat,b.lng]}),{color:"#e0b73a",weight:3,opacity:.85,dashArray:"2 8"}).addTo(map)}
+function fillHoods(){
+  var hl=hoodList(),s=$("hs"),key=hl.join("|");
+  if(key!==hk){hk=key;var h='<option value="">Tüm mahalleler</option>';hl.forEach(function(x){h+='<option>'+esc(x)+'</option>'});s.innerHTML=h;$("hoods").innerHTML=hl.map(function(x){return'<option value="'+esc(x)+'">'}).join("")}
+  if(hl.indexOf(hood)<0)hood="";
+  s.value=hood;$("hrow").hidden=!hl.length;$("hact").hidden=!hood;
+}
+function goNext(b){
+  var o=ordered(),i=o.indexOf(b),n=null;
+  for(var k=1;k<=o.length;k++){var c=o[(i+k)%o.length];if(!c.done&&c!==b){n=c;break}}
+  msg("");
+  if(n){pick(n.id)}
+  else if(b.done){sel=null;drawBoxes();route();renderList();renderInfo();msg("Bu mahallede bekleyen kutu kalmadı.")}
+  else msg("Başka bekleyen kutu yok.");
+}
+$("hs").onchange=function(){
+  hood=$("hs").value;sel=null;msg("");
+  drawBoxes();route();renderList();renderInfo();
+  var p=(hood?ordered():boxes.filter(has)).map(function(b){return[b.lat,b.lng]});
+  if(p.length)map.fitBounds(p,{padding:[40,40],maxZoom:17});
+};
+$("rs").onclick=function(){var n=ordered().filter(function(b){return!b.done})[0];if(n){msg("");pick(n.id)}else msg("Bu mahallede bekleyen kutu yok. “Sıfırla” ile yeniden başlatabilirsin.")};
+$("rr").onclick=function(){if(confirm("Bu mahallenin tamamlanan işaretleri silinsin mi?")){boxes.forEach(function(b){if(b.hood===hood)b.done=false});save();drawBoxes();renderList();renderInfo()}};
+$("ro").onclick=function(){
+  if(!me){msg("Sıralamak için konumun gerekli. Konum iznini kontrol et.");return}
+  if(!confirm("Bu mahallenin sırası, bulunduğun yerden başlayarak en yakın kutuya göre yeniden düzenlensin mi?"))return;
+  var all=ordered(),dn=all.filter(function(b){return b.done}),left=all.filter(function(b){return!b.done}),cur={lat:me.lat,lng:me.lng},k=0;
+  dn.forEach(function(b){b.ord=++k});
+  while(left.length){var bi=0,bd=1e18;left.forEach(function(b,i){var d=dist(cur,b);if(d<bd){bd=d;bi=i}});var c=left.splice(bi,1)[0];c.ord=++k;cur=c}
+  boxes.filter(function(b){return b.hood===hood&&!has(b)}).forEach(function(b){b.ord=++k});
+  save();drawBoxes();renderList();renderInfo();
+};
 var pts0=boxes.filter(has).map(function(b){return[b.lat,b.lng]});
 if(pts0.length)map.fitBounds(pts0,{padding:[40,40],maxZoom:17});
 drawBoxes();renderList();renderInfo();gps();
