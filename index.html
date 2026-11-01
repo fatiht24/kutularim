@@ -75,7 +75,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 <div class="wrap">
   <div class="top">
     <input class="search" id="q" type="search" placeholder="Kutu veya eşya ara" aria-label="Ara">
-    <button class="btn" id="me" aria-label="Beni bul">Beni bul</button>
+    <button class="btn" id="me" aria-label="Beni bul">Beni bul</button><button class="btn" id="hi">Geçmiş</button>
   </div>
   <div class="top" id="hrow" hidden><select class="search" id="hs" aria-label="Mahalle"></select></div>
   <div class="top" id="hact" hidden><button class="btn main" id="rs">Rotayı başlat</button><button class="btn" id="ro">Yakına göre sırala</button><button class="btn" id="rr">Sıfırla</button></div>
@@ -108,6 +108,13 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <button class="btn" id="cx" type="button">Vazgeç</button>
     <button class="btn main" id="sv" type="button">Kaydet</button>
   </div>
+</div></dialog>
+
+<dialog id="hdlg"><div class="dlg">
+  <h2>Toplama geçmişi</h2>
+  <p class="msg" style="margin:0 0 8px">Gün gün, hangi mahallede hangi kutulara kadar toplandığını gösterir. Sıfırlayana kadar kalır.</p>
+  <div id="hl2"></div>
+  <div class="acts"><button class="btn del" id="hz" type="button">Tüm geçmişi sıfırla</button><button class="btn main" id="hx" type="button">Kapat</button></div>
 </div></dialog>
 
 <dialog id="qdlg"><div class="dlg">
@@ -195,7 +202,7 @@ function renderInfo(){
     h+='<button class="btn" id="ed">Düzenle</button><button class="btn" id="cl">Kapat</button></div></div>';
   }
   $("info").innerHTML=h;
-  if(b){if($("nx"))$("nx").onclick=function(){b.done=true;save();goNext(b)};if($("sk"))$("sk").onclick=function(){goNext(b)};if($("hl"))$("hl").onclick=function(){b.lat=me.lat;b.lng=me.lng;save();drawBoxes();route();renderList();renderInfo()};$("ed").onclick=function(){openEdit(b.id)};$("cl").onclick=function(){sel=null;drawBoxes();route();renderInfo()}}
+  if(b){if($("nx"))$("nx").onclick=function(){b.done=true;b.at=Date.now();save();goNext(b)};if($("sk"))$("sk").onclick=function(){goNext(b)};if($("hl"))$("hl").onclick=function(){b.lat=me.lat;b.lng=me.lng;save();drawBoxes();route();renderList();renderInfo()};$("ed").onclick=function(){openEdit(b.id)};$("cl").onclick=function(){sel=null;drawBoxes();route();renderInfo()}}
 }
 function renderList(){fillHoods();
   var t=norm(q.trim()),L2=boxes.filter(function(b){return(!hood||b.hood===hood)&&(!t||match(b,t))});
@@ -271,7 +278,7 @@ $("bx").onclick=function(){$("bdlg").close()};
 $("bc").onclick=function(){var t=$("bt");t.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}$("bm").textContent=ok?"Kopyalandı.":"Metin seçildi, elle kopyala."};
 $("bi").onclick=function(){
   try{var a=JSON.parse($("bt").value);if(!Array.isArray(a))throw 0;
-    boxes=a.filter(function(b){return b&&b.name}).map(function(b,i){return{id:b.id||"i"+Date.now().toString(36)+i,name:String(b.name),loc:String(b.loc||""),items:Array.isArray(b.items)?b.items.map(String):[],note:String(b.note||""),hood:String(b.hood||""),ord:typeof b.ord==="number"?b.ord:null,done:!!b.done,lat:typeof b.lat==="number"?b.lat:null,lng:typeof b.lng==="number"?b.lng:null}});
+    boxes=a.filter(function(b){return b&&b.name}).map(function(b,i){return{id:b.id||"i"+Date.now().toString(36)+i,name:String(b.name),loc:String(b.loc||""),items:Array.isArray(b.items)?b.items.map(String):[],note:String(b.note||""),hood:String(b.hood||""),ord:typeof b.ord==="number"?b.ord:null,done:!!b.done,at:typeof b.at==="number"?b.at:null,lat:typeof b.lat==="number"?b.lat:null,lng:typeof b.lng==="number"?b.lng:null}});
     save();drawBoxes();route();renderList();renderInfo();$("bm").textContent=boxes.length+" kutu geri yüklendi.";
   }catch(e){$("bm").textContent="Yedek okunamadı. Metnin tamamını yapıştır."}
 };
@@ -415,7 +422,7 @@ $("hs").onchange=function(){
   if(p.length)map.fitBounds(p,{padding:[40,40],maxZoom:17});
 };
 $("rs").onclick=function(){var n=ordered().filter(function(b){return!b.done})[0];if(n){msg("");pick(n.id)}else msg("Bu mahallede bekleyen kutu yok. “Sıfırla” ile yeniden başlatabilirsin.")};
-$("rr").onclick=function(){if(confirm("Bu mahallenin tamamlanan işaretleri silinsin mi?")){boxes.forEach(function(b){if(b.hood===hood)b.done=false});save();drawBoxes();renderList();renderInfo()}};
+$("rr").onclick=function(){if(confirm("Bu mahallenin tamamlanan işaretleri ve toplama geçmişi silinsin mi?")){boxes.forEach(function(b){if(b.hood===hood){b.done=false;b.at=null}});save();drawBoxes();renderList();renderInfo()}};
 $("ro").onclick=function(){
   if(!me){msg("Sıralamak için konumun gerekli. Konum iznini kontrol et.");return}
   if(!confirm("Bu mahallenin sırası, bulunduğun yerden başlayarak en yakın kutuya göre yeniden düzenlensin mi?"))return;
@@ -425,6 +432,28 @@ $("ro").onclick=function(){
   boxes.filter(function(b){return b.hood===hood&&!has(b)}).forEach(function(b){b.ord=++k});
   save();drawBoxes();renderList();renderInfo();
 };
+function dkey(t){var d=new Date(t);return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function renderHist(){
+  var days={},h="";
+  boxes.forEach(function(b){if(b.done&&b.at){var k=dkey(b.at);if(!days[k])days[k]={t:b.at,h:{}};var hn=b.hood||"Mahallesiz";(days[k].h[hn]=days[k].h[hn]||[]).push(b)}});
+  var ks=Object.keys(days).sort().reverse();
+  if(!ks.length)h='<div class="empty">Henüz toplanan kutu yok. “Tamam, sıradaki” ile işaretlediklerin burada görünür.</div>';
+  ks.forEach(function(k){
+    var dd=days[k],tot=0;Object.keys(dd.h).forEach(function(x){tot+=dd.h[x].length});
+    h+='<h3 style="margin:14px 0 6px">'+esc(new Date(dd.t).toLocaleDateString("tr-TR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}))+' <small style="color:var(--mute);font-weight:400">('+tot+' kutu)</small></h3>';
+    Object.keys(dd.h).sort(function(a,b){return a.localeCompare(b,"tr")}).forEach(function(hn){
+      var a=dd.h[hn].sort(function(x,y){return x.at-y.at}),last=a.slice().sort(function(x,y){return(y.ord||0)-(x.ord||0)})[0];
+      h+='<details class="item" style="display:block"><summary><b>'+esc(hn)+'</b>: '+a.length+' kutu'+(last.ord!=null?', '+last.ord+'. sıraya kadar':'')+' ('+esc(last.name)+')</summary>';
+      a.forEach(function(b){h+='<div class="row" style="justify-content:space-between;align-items:center"><span>'+(b.ord!=null?b.ord+'. ':'')+esc(b.name)+' <small style="color:var(--mute)">'+new Date(b.at).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})+'</small></span><button class="btn" style="padding:6px 12px;font-size:14px" data-undo="'+b.id+'">Geri al</button></div>'});
+      h+='</details>';
+    });
+  });
+  $("hl2").innerHTML=h;
+}
+$("hi").onclick=function(){renderHist();$("hdlg").showModal()};
+$("hx").onclick=function(){$("hdlg").close()};
+$("hl2").addEventListener("click",function(e){var u=e.target.getAttribute&&e.target.getAttribute("data-undo");if(!u)return;var b=get(u);if(b){b.done=false;b.at=null;save();renderHist();drawBoxes();renderList();renderInfo()}});
+$("hz").onclick=function(){if(confirm("Tüm mahallelerin toplama geçmişi silinsin mi? Bu geri alınamaz.")){boxes.forEach(function(b){b.done=false;b.at=null});save();renderHist();drawBoxes();renderList();renderInfo()}};
 var pts0=boxes.filter(has).map(function(b){return[b.lat,b.lng]});
 if(pts0.length)map.fitBounds(pts0,{padding:[40,40],maxZoom:17});
 drawBoxes();renderList();renderInfo();gps();
