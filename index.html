@@ -78,9 +78,10 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <button class="btn" id="me" aria-label="Beni bul">Beni bul</button><button class="btn" id="hi">Geçmiş</button>
   </div>
   <div class="top" id="hrow"><select class="search" id="hs" aria-label="Mahalle"></select><button class="btn" id="hn">+ Mahalle</button></div>
-  <div class="top" id="hact" hidden><button class="btn main" id="rs">Rotayı başlat</button><button class="btn" id="ro">Yakına göre sırala</button><button class="btn" id="rr">Sıfırla</button></div>
+  <div class="top" id="hact" hidden><button class="btn main" id="tb">Toplu işaretle</button><button class="btn" id="rs">Rotayı başlat</button><button class="btn" id="ro">Yakına göre sırala</button><button class="btn" id="rr">Sıfırla</button></div>
   <div class="mw"><div id="map"></div><div class="attr">© OpenStreetMap, rota: OSRM (FOSSGIS)</div></div>
   <div class="msg" id="msg"></div>
+  <button class="btn" id="fk" hidden style="margin-bottom:8px">Konum yok mu? Test konumu kullan</button>
   <div class="msg" id="warn" hidden style="color:var(--danger);font-weight:500"></div>
   <div class="card" id="bkb" hidden style="display:flex;gap:10px;align-items:center;justify-content:space-between"><span id="bkt"></span><span style="display:flex;gap:8px"><button class="btn main" id="bky">Dosyaya</button><button class="btn" id="bkn">Notlara</button></span></div>
   <div id="info"></div>
@@ -109,6 +110,18 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
     <button class="btn" id="cx" type="button">Vazgeç</button>
     <button class="btn main" id="sv" type="button">Kaydet</button>
   </div>
+</div></dialog>
+
+<dialog id="tdlg"><div class="dlg">
+  <h2>Toplu işaretle</h2>
+  <p class="msg" id="tmh" style="margin:0 0 10px"></p>
+  <div class="acts" style="flex-wrap:nowrap">
+    <label class="f" style="flex:1">Başlangıç sıra no<input id="tfrom" inputmode="numeric"></label>
+    <label class="f" style="flex:1">Bitiş sıra no<input id="tto" inputmode="numeric"></label>
+  </div>
+  <label class="f">Tarih<input id="tdt" type="date"></label>
+  <p class="msg" id="tin"></p>
+  <div class="acts"><button class="btn" id="tx" type="button">Kapat</button><button class="btn del" id="tun" type="button">İşareti kaldır</button><button class="btn main" id="tok" type="button">İşaretle</button></div>
 </div></dialog>
 
 <dialog id="hdlg"><div class="dlg">
@@ -168,7 +181,7 @@ function get(id){return boxes.filter(function(b){return b.id===id})[0]}
 function has(b){return b.lat!=null&&b.lng!=null}
 function dist(a,b){var r=Math.PI/180,R=6371000,p=(b.lat-a.lat)*r,n=(b.lng-a.lng)*r,x=Math.pow(Math.sin(p/2),2)+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.pow(Math.sin(n/2),2);return 2*R*Math.asin(Math.sqrt(x))}
 function brg(a,b){var r=Math.PI/180,y=Math.sin((b.lng-a.lng)*r)*Math.cos(b.lat*r),x=Math.cos(a.lat*r)*Math.sin(b.lat*r)-Math.sin(a.lat*r)*Math.cos(b.lat*r)*Math.cos((b.lng-a.lng)*r);return(Math.atan2(y,x)/r+360)%360}
-function fd(m){return m<1000?Math.round(m)+" m":(m/1000).toFixed(1)+" km"}
+function fd(m){return m<1000?Math.round(m)+" m":(m/1000).toFixed(1).replace(".",",")+" km"}
 function dir(d){return["kuzey","kuzeydoğu","doğu","güneydoğu","güney","güneybatı","batı","kuzeybatı"][Math.round(d/45)%8]}
 function match(b,t){return norm(b.name+" "+b.loc+" "+b.note+" "+b.items.join(" ")).indexOf(t)>=0}
 
@@ -198,8 +211,8 @@ function renderInfo(){
     else if(!has(b))h+='<div class="msg">Bu kutunun harita yeri yok. Düzenleyip yerini seç.</div>';
     h+=(nav&&me&&has(b)?'<div class="nav">'+nav+'</div>':'')+'<div class="msg">'+(b.items.length?esc(b.items.join(", ")):"İçinde eşya yok")+(b.note?" · "+esc(b.note):"")+'</div><div class="row">';
     
-    if(hood&&b.hood===hood)h+='<button class="btn main" id="nx">Tamam, sıradaki</button><button class="btn" id="sk">Atla</button>';
-    else h+=(b.done?'<button class="btn" id="ud">Toplandı işaretini kaldır</button>':'<button class="btn main" id="dn">Topladım</button>');
+    if(hood&&b.hood===hood)h+='<button class="btn main" id="sk">Sıradaki kutu</button>';
+    
     if(!has(b)&&me)h+='<button class="btn main" id="hl">Konumu buraya ata</button>';
     h+='<button class="btn" id="ed">Düzenle</button><button class="btn" id="cl">Kapat</button></div></div>';
   }
@@ -238,7 +251,7 @@ function gps(){
     if(first&&!sel){var pts=[[me.lat,me.lng]];boxes.forEach(function(b){if(has(b))pts.push([b.lat,b.lng])});
       if(pts.length>1)map.fitBounds(pts,{padding:[40,40],maxZoom:17});else map.setView(pts[0],17)}
     updateMe();
-  },function(){msg("Konumun alınamadı. Cihazda konum iznini açıp “Beni bul”a bas.")},{enableHighAccuracy:true,maximumAge:3000,timeout:20000});
+  },function(){msg("Konumun alınamadı. Cihazda konum iznini açıp “Beni bul”a bas.");if(location.hostname.indexOf("github.io")<0)$("fk").hidden=false},{enableHighAccuracy:true,maximumAge:3000,timeout:20000});
 }
 $("me").onclick=function(){if(me)map.setView([me.lat,me.lng],Math.max(map.getZoom(),17));else gps()};
 $("q").addEventListener("input",function(e){q=e.target.value;drawBoxes();renderList()});
@@ -261,7 +274,7 @@ $("pm").onclick=function(){
 };
 map.on("click",function(e){
   if(!placing)return;
-  placing=false;$("map").classList.remove("place");msg("");
+  lastPl=Date.now();placing=false;$("map").classList.remove("place");msg("");
   pend.lat=e.latlng.lat;pend.lng=e.latlng.lng;var d=pend;pend=null;openEdit(d.id,d);
 });
 $("sv").onclick=function(){
@@ -440,7 +453,7 @@ function renderHist(){
   var days={},h="";
   boxes.forEach(function(b){if(b.done&&b.at){var k=dkey(b.at);if(!days[k])days[k]={t:b.at,h:{}};var hn=b.hood||"Mahallesiz";(days[k].h[hn]=days[k].h[hn]||[]).push(b)}});
   var ks=Object.keys(days).sort().reverse();
-  if(!ks.length)h='<div class="empty">Henüz toplanan kutu yok. “Tamam, sıradaki” ile işaretlediklerin burada görünür.</div>';
+  if(!ks.length)h='<div class="empty">Henüz toplanan kutu yok. “Toplu işaretle” ile işaretlediklerin burada görünür.</div>';
   ks.forEach(function(k){
     var dd=days[k],tot=0;Object.keys(dd.h).forEach(function(x){tot+=dd.h[x].length});
     h+='<h3 style="margin:14px 0 6px">'+esc(new Date(dd.t).toLocaleDateString("tr-TR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}))+' <small style="color:var(--mute);font-weight:400">('+tot+' kutu)</small></h3>';
@@ -500,6 +513,23 @@ function doNotes(){
 $("bkn").onclick=doNotes;
 $("bn").onclick=function(){$("bdlg").close();doNotes()};
 $("hn").onclick=function(){var n=(prompt("Mahalle adı:")||"").trim();if(!n)return;if(extraH.indexOf(n)<0){extraH.push(n);try{localStorage.setItem("kutularim.hoods",JSON.stringify(extraH))}catch(e){}}hood=n;sel=null;hk=null;fillHoods();drawBoxes();route();renderList();renderInfo()};
+var fake=false,lastPl=0;
+$("fk").onclick=function(){fake=true;me={lat:40.877,lng:29.233,acc:8};$("fk").hidden=true;msg("Test konumu açık. Haritaya dokunarak yerini değiştirebilirsin.");map.setView([me.lat,me.lng],16);updateMe()};
+map.on("click",function(e){if(fake&&Date.now()-lastPl>300){me={lat:e.latlng.lat,lng:e.latlng.lng,acc:8};updateMe()}});
+function tRange(){var f=num($("tfrom").value),t=num($("tto").value);return boxes.filter(function(b){return b.hood===hood&&b.ord!=null&&f!=null&&t!=null&&b.ord>=f&&b.ord<=t})}
+function tInfo(){var a=tRange(),d=a.filter(function(b){return b.done}).length;$("tin").textContent=a.length?a.length+" kutu seçili"+(d?" ("+d+" tanesi zaten işaretli, tarihi değişmez)":"")+".":"Bu aralıkta kutu yok."}
+function tToday(){return dkey(Date.now())}
+function tAt(){var v=$("tdt").value;if(!v||v===tToday())return Date.now();var p=v.split("-");return new Date(+p[0],+p[1]-1,+p[2],12,0,0).getTime()}
+function tDone(m){save();drawBoxes();renderList();renderInfo();msg(m);$("tdlg").close()}
+$("tb").onclick=function(){
+  var hb=boxes.filter(function(b){return b.hood===hood}),mx=maxOrd(hood),un=hb.filter(function(b){return!b.done&&b.ord!=null}).map(function(b){return b.ord}).sort(function(a,b){return a-b});
+  $("tmh").textContent=hood+": "+hb.length+" kutu, sıra no 1 ile "+mx+" arası.";
+  $("tfrom").value=un.length?un[0]:1;$("tto").value=mx;$("tdt").value=tToday();$("tdt").max=tToday();tInfo();$("tdlg").showModal();
+};
+$("tfrom").oninput=tInfo;$("tto").oninput=tInfo;
+$("tx").onclick=function(){$("tdlg").close()};
+$("tok").onclick=function(){var a=tRange(),at=tAt(),n=0;a.forEach(function(b){if(!b.done){b.done=true;b.at=at;n++}});tDone(n+" kutu toplanmış olarak işaretlendi.")};
+$("tun").onclick=function(){var a=tRange(),n=0;if(!a.length)return;if(!confirm(a.length+" kutunun toplandı işareti kaldırılsın mı?"))return;a.forEach(function(b){if(b.done){b.done=false;b.at=null;n++}});tDone(n+" kutunun işareti kaldırıldı.")};
 var pts0=boxes.filter(has).map(function(b){return[b.lat,b.lng]});
 if(pts0.length)map.fitBounds(pts0,{padding:[40,40],maxZoom:17});
 drawBoxes();renderList();renderInfo();gps();
